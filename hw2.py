@@ -7,12 +7,11 @@ Created on Wed Feb 19 14:32:25 2025
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.special import hankel2
-from math import ceil,floor
 
 rho0 = 1.2 # air, 20°C, 1 atm
 w = 1 # air -> 343 = w/k
 k = 5
-m = 100
+m = 50
 
 class Edge:
     def __init__(self,r1,r2):
@@ -44,6 +43,9 @@ class Edge:
         rho = np.linalg.norm(diff, axis=-1) # (N,m)
 
         H = hankel2(0, k * rho) # (N,m)
+        if np.any(np.isnan(H)):
+            raise ValueError("Hankel function evaluated at singular point, change geometry or grid.")
+        
         H[:, 0] *= 1/2
         H[:, -1] *= 1/2
 
@@ -82,23 +84,34 @@ def circle_maker(n_edges,rayon,center):
         
 edges = circle_maker(15, 1, (0,0))
 
+velocity_distribution = 0.5 * np.ones(len(edges)) # constant velocity distribution
+
 # create grid
 gridsize = 30
-x = np.linspace(-5, 5, gridsize)
+x = np.linspace(-4, 4, gridsize)
 X, Y = np.meshgrid(x, x)
 coord_array = np.column_stack((X.ravel(), Y.ravel()))
+
+for i in range(len(edges)):
+    plt.plot([edges[i].r1[0], edges[i].r2[0]], [edges[i].r1[1], edges[i].r2[1]], "-", linewidth=2)
+    plt.scatter(coord_array[:, 0], coord_array[:, 1], c='gray', marker='.', s=1)
+
+plt.xlabel("$x$")
+plt.ylabel("$y$")
+plt.axis('equal')
+plt.title("Geometry overview")
+plt.show()
 
 grid_integrals = np.zeros((gridsize * gridsize, len(edges)), dtype=complex)
 
 for i in range(len(edges)):
-    grid_integrals[:,i] = edges[i].integral(1, coord_array)
+    grid_integrals[:,i] = edges[i].integral(velocity_distribution[i], coord_array)
 grid_integrals = np.sum(grid_integrals, axis=-1) # sum up all contributions
 
 import matplotlib.pyplot as plt
 import matplotlib.animation
 
 plt.rcParams["animation.html"] = "jshtml"
-# plt.rcParams['figure.dpi'] = 150  
 plt.ioff()
 
 fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
@@ -112,18 +125,9 @@ def animate(t):
     plt.xlim(-5, 5)
     plt.ylim(-5, 5)
     ax.set_zlim(-2.5, 2.5)
-
-# for i in range(len(edges)):
-#     plt.plot([edges[i].r1[0], edges[i].r2[0]], [edges[i].r1[1], edges[i].r2[1]], "-")
-#     plt.scatter(coord_array[:, 0], coord_array[:, 1], c='r', marker='x')
-
-# plt.xlabel("$x$")
-# plt.ylabel("$y$")
-# plt.axis('equal')
-
-# plt.grid(True)
-# plt.show()
+    ax.set_title("Pressure field")
+    fig.tight_layout()
     
 
-ani = matplotlib.animation.FuncAnimation(fig, animate, frames=1000, interval=500)
+ani = matplotlib.animation.FuncAnimation(fig, animate, frames=1000, interval=100)
 plt.show()
