@@ -9,128 +9,121 @@ import matplotlib.pyplot as plt
 from scipy.special import hankel2
 from math import ceil,floor
 
-omega = 1
+rho0 = 1.2 # air, 20°C, 1 atm
+w = 1 # air -> 343 = w/k
 k = 5
-rho0 = 1
 m = 100
 
-class Facette:
+class Edge:
     def __init__(self,r1,r2):
         self.r1 = r1
         self.r2 = r2
+
     def norm(self):
         r = self.r1-self.r2
         return(np.sqrt(r[0]**2 + r[1]**2))
-    def integrale(self, Vn,source):
+
+    def integral(self, Vn, obs):
         """
         Parameters
         ----------
         Vn : float
-            vitesse normal.
-        source : (int,int)
-            point observateur.
+            constant normal velocity w.r.t interface
+        obs : 2d array
+            grid of observation points.
 
         Returns
         -------
         l'intégrale.
 
         """
-        # à faire
-        s = np.linspace(0, 1, m)
-        diff = source - (self.r1 + s[:, np.newaxis] * (self.r2-self.r1))
-        rho = np.sqrt(diff[:, 0]**2 + diff[:, 1]**2)
+        obs = np.atleast_2d(obs) # (N,2)
 
-        H = hankel2(0, k * rho)
-        H[0] *= 1/2
-        H[-1] *= 1/2
+        s = np.linspace(0, 1, m) # (m,)
+        diff = obs[:, np.newaxis, :] - (self.r1 + s[:, np.newaxis] * (self.r2-self.r1)) # (N,m,2)
+        rho = np.linalg.norm(diff, axis=-1) # (N,m)
 
-        return omega * rho0 * Vn * self.norm() * np.sum(H) / m
+        H = hankel2(0, k * rho) # (N,m)
+        H[:, 0] *= 1/2
+        H[:, -1] *= 1/2
 
+        integral = w * rho0 * Vn * self.norm() * np.sum(H, axis=1) / m # (N,)
+        return integral
         
-def cercle_maker(n_facette,rayon,center,size_matirix):
+def circle_maker(n_edges,rayon,center):
     """
     Parameters
     ----------
-    n_facette : int
-        nombre de faces.
+    n_edges : int
+        nombre de faces du cylindre.
     rayon : int
         rayon en cellule.
     center : (int,int)
         index matrice du centre.
-    size_matrix : (int,int)
-        taille de la matrice en cellule
     Returns
     -------
-    matrice avec borne et liste des facette.
+    liste des edges du pourtour de la section.
     """
-    matrix_geo = np.zeros((size_matirix[0],size_matirix[1]))
-    matrix_geo[:] = np.nan
-    angle = 360/n_facette/180*np.pi
+    angle = 360/n_edges/180*np.pi # TO DO : adapt this such that each edge's length is 2pi/10k
     r1 = np.array(center)+np.array((rayon,0))
-    all_facette = []
+    all_edges = []
     current_angle = angle
     
-    #création des facettes
-    for i in range(n_facette + 1):
+    #création des edges
+    for i in range(n_edges + 1):
         r2 = center + np.array((rayon*np.cos(current_angle), rayon*np.sin(current_angle)))
-        facette = Facette(r1, r2)
-        all_facette.append(facette)
-        
-        # #mise de la facette dans la géométrie
-        # index = i
-        # rho = r2-r1
-        # maxx = np.max(np.abs(rho))
-        # s = np.linspace(0, 1,maxx+1)
-        # for i in range(len(s)):
-        #     r = r1 + s[i]*rho
-        #     if (current_angle<=90/180*np.pi):
-        #         matrix_geo[int(ceil(r[0])),int(r[1])] = index
-        #     elif (current_angle<=180/180*np.pi):
-        #         matrix_geo[int((r[0])),int(r[1])] = index
-        #     elif (current_angle<=270/180*np.pi):
-        #         matrix_geo[int((r[0])),ceil(r[1])] = index
-        #     else:
-        #         matrix_geo[ceil((r[0])),ceil(r[1])] = index
-            
-        #passe à la facette suivante
+        edge = Edge(r1, r2)
+        all_edges.append(edge)
         r1 = r2
         current_angle = current_angle + angle
-        
-
-    for i in range(size_matirix[0]):
-        a = False
-        b = False
-        c = False
-        start = -1
-        end = -1
-        for j in range(size_matirix[1]):
-            if(c):
-                matrix_geo[i][start:end] = -1
-                break
-            if(not np.isnan(matrix_geo[i][j]) and not a):
-                a = True
-            elif(not b and np.isnan(matrix_geo[i][j]) and a):
-                b =True
-                start = j
-            elif(not np.isnan(matrix_geo[i][j]) and b):
-                end = j
-                c=True
-        
-                
             
-    return(matrix_geo,all_facette)
+    return all_edges
     
         
-_, f = cercle_maker(30, 10, (25,25), (50,50))
+edges = circle_maker(15, 1, (0,0))
 
-for facette in f:
+# create grid
+gridsize = 30
+x = np.linspace(-5, 5, gridsize)
+X, Y = np.meshgrid(x, x)
+coord_array = np.column_stack((X.ravel(), Y.ravel()))
 
-    plt.plot([facette.r1[0], facette.r2[0]], [facette.r1[1], facette.r2[1]], "o-")
+grid_integrals = np.zeros((gridsize * gridsize, len(edges)), dtype=complex)
 
-plt.xlabel("$x$")
-plt.ylabel("$y$")
-plt.axis('equal')
+for i in range(len(edges)):
+    grid_integrals[:,i] = edges[i].integral(1, coord_array)
+grid_integrals = np.sum(grid_integrals, axis=-1) # sum up all contributions
 
-plt.grid(True)
-plt.show()
+import matplotlib.pyplot as plt
+import matplotlib.animation
+
+plt.rcParams["animation.html"] = "jshtml"
+# plt.rcParams['figure.dpi'] = 150  
+plt.ioff()
+
+fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+
+def animate(t):
+    plt.cla()
+
+    pressures = np.real(grid_integrals * np.exp(1j * w * t))
+    ax.plot_surface(X, Y, pressures.reshape(X.shape))
+
+    plt.xlim(-5, 5)
+    plt.ylim(-5, 5)
+    ax.set_zlim(-2.5, 2.5)
+
+# for i in range(len(edges)):
+#     plt.plot([edges[i].r1[0], edges[i].r2[0]], [edges[i].r1[1], edges[i].r2[1]], "-")
+#     plt.scatter(coord_array[:, 0], coord_array[:, 1], c='r', marker='x')
+
+# plt.xlabel("$x$")
+# plt.ylabel("$y$")
+# plt.axis('equal')
+
+# plt.grid(True)
+# plt.show()
     
+
+ani = matplotlib.animation.FuncAnimation(fig, animate, frames=1000, interval=500)
+plt.show()
