@@ -7,10 +7,12 @@ Created on Wed Feb 19 14:32:25 2025
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.special import hankel2
-
+from math import ceil
 rho0 = 1.2 # air, 20°C, 1 atm
-w = 1 # air -> 343 = w/k
-k = 5
+f = 100 #[hz]
+w = 2*np.pi*f# air -> 343 = w/k
+k = w/343
+longueur_onde = (2*np.pi)/k
 m = 50
 
 class Edge:
@@ -52,12 +54,10 @@ class Edge:
         integral = w * rho0 * Vn * self.norm() * np.sum(H, axis=1) / m # (N,)
         return integral
         
-def circle_maker(n_edges,rayon,center):
+def circle_maker(rayon,center):
     """
     Parameters
     ----------
-    n_edges : int
-        nombre de faces du cylindre.
     rayon : int
         rayon en cellule.
     center : (int,int)
@@ -66,7 +66,12 @@ def circle_maker(n_edges,rayon,center):
     -------
     liste des edges du pourtour de la section.
     """
-    angle = 360/n_edges/180*np.pi # TO DO : adapt this such that each edge's length is 2pi/10k
+    
+    circonf = 2*np.pi*rayon
+    long_edge = longueur_onde/10
+    n_edges = ceil(circonf/long_edge)
+    
+    angle = 360/n_edges/180*np.pi # DONE : adapt this such that each edge's length is 2pi/10k
     r1 = np.array(center)+np.array((rayon,0))
     all_edges = []
     current_angle = angle
@@ -82,13 +87,22 @@ def circle_maker(n_edges,rayon,center):
     return all_edges
     
         
-edges = circle_maker(15, 1, (0,0))
+edges = circle_maker(1, (0,0))
 
-velocity_distribution = 0.5 * np.ones(len(edges)) # constant velocity distribution
+
+velocity_distribution = 0.5 * np.ones(len(edges))
+for i in range(len(edges)):
+    mid_point_x = (edges[i].r1[0]+edges[i].r2[0])/2
+    mid_point_y = (edges[i].r1[1]+edges[i].r2[1])/2
+    
+    angle = np.arctan2(mid_point_x,mid_point_y)
+    velocity_distribution[i] = velocity_distribution[i]*(np.cos(angle)**2)
+    
+#velocity_distribution = 0.5 * np.ones(len(edges)) # constant velocity distribution
 
 # create grid
-gridsize = 30
-x = np.linspace(-4, 4, gridsize)
+gridsize = 50
+x = np.linspace(-5*longueur_onde, 5*longueur_onde, gridsize)
 X, Y = np.meshgrid(x, x)
 coord_array = np.column_stack((X.ravel(), Y.ravel()))
 
@@ -118,16 +132,15 @@ fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
 
 def animate(t):
     plt.cla()
-
-    pressures = np.real(grid_integrals * np.exp(1j * w * t))
+    pressures = np.real(grid_integrals * np.exp(1j* t/2))
     ax.plot_surface(X, Y, pressures.reshape(X.shape))
 
-    plt.xlim(-5, 5)
-    plt.ylim(-5, 5)
-    ax.set_zlim(-2.5, 2.5)
+    plt.xlim(-5*longueur_onde, 5*longueur_onde)
+    plt.ylim(-5*longueur_onde, 5*longueur_onde)
+    ax.set_zlim(-1000, 1000)
     ax.set_title("Pressure field")
     fig.tight_layout()
     
 
-ani = matplotlib.animation.FuncAnimation(fig, animate, frames=1000, interval=100)
+ani = matplotlib.animation.FuncAnimation(fig, animate, frames=50, interval=10)
 plt.show()
