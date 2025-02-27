@@ -108,7 +108,7 @@ coord_array = np.column_stack((X.ravel(), Y.ravel()))
 
 for i in range(len(edges)):
     plt.plot([edges[i].r1[0], edges[i].r2[0]], [edges[i].r1[1], edges[i].r2[1]], "-", linewidth=2)
-    plt.scatter(coord_array[:, 0], coord_array[:, 1], c='gray', marker='.', s=1)
+    plt.scatter(coord_array[:, 0], coord_array[:, 1], c='gray', marker='+', s=1)
 
 plt.xlabel("$x$")
 plt.ylabel("$y$")
