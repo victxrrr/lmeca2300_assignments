@@ -93,7 +93,6 @@ import matplotlib.animation
 
 plt.rcParams["animation.html"] = "jshtml"
 plt.ioff()
-
 fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
 delta_t = (1/f)/10
 
