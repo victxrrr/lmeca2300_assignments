@@ -77,12 +77,19 @@ class Edge:
         sbar = np.fmin(L1, L2) / np.fmax(L1, L2)
 
         m = 40
+        print(L1-L2)
+        print(sbar)
         if L1 == 0:
+            print("CASE 1")
             return (Vn*w*rho0*L2/4)*self.__integrate_hankel(0, 1, m, 1)
         elif L1 <= L2:
+            print("CASE 2")
             return (Vn*w*rho0/4)*((L2+L2)*self.__integrate_hankel(0, sbar, m, 1) + (L2)*self.__integrate_hankel(sbar, 1, m, 1))
         elif L1-L2<10**-3:
+            print("CASE 3")
             return (Vn*w*rho0*L1/2)*self.__integrate_hankel(0, 1, m, 1)
+        else:
+            print("Not treated")
         
     def integrate_gen(self, Vn, obs,m=100):
         """
